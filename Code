@@ -1,0 +1,40 @@
+import pandas as pd
+df = pd.read_csv('Leto.csv')
+df.head()
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import SGDClassifier
+from sklearn.model_selection import GridSearchCV
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+X = df.copy()
+y = X['Month'].copy()
+num_features = ['ID', 'Sum', 'Shop', 'Male', 'Child', 'Age', 'Time']
+X = X[num_features]
+from sklearn.cross_validation import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3, random_state = 11)
+N_train, _ = X_train.shape 
+N_test,  _ = X_test.shape 
+print (N_train, N_test)
+
+def plot_cv_score(params, cv_results_, title=''):
+    plt.figure(figsize=(10,5))
+    plt.plot(params, cv_results_['mean_test_score'])
+    plt.plot(params, cv_results_['mean_test_score'] + cv_results_['std_test_score'], 'b--')
+    plt.plot(params, cv_results_['mean_test_score'] - cv_results_['std_test_score'], 'b--')
+    plt.fill_between(params.astype(float), cv_results_['mean_test_score'] + cv_results_['std_test_score'],
+                     cv_results_['mean_test_score'] - cv_results_['std_test_score'], alpha=.2)
+    plt.title(title)
+    plt.xlabel('Параметр')
+    plt.ylabel('CV score +/- std')
+knn_params = {'n_neighbors' : np.arange(1,31)}
+dtc_params = {'max_depth' : np.arange(1,21)}
+sgd_params = {'loss' : ['hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron']}
+knn_cv = GridSearchCV(KNeighborsClassifier(), knn_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
+dtc_cv = GridSearchCV(DecisionTreeClassifier(), dtc_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
+sgd_cv = GridSearchCV(SGDClassifier(), sgd_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
+knn_cv.fit(X, y)
+dtc_cv.fit(X, y)
+sgd_cv.fit(X, y)
+knn_cv.best_params_
