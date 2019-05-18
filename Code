@@ -10,31 +10,97 @@ import seaborn as sns
 %matplotlib inline
 X = df.copy()
 y = X['Month'].copy()
-num_features = ['ID', 'Sum', 'Shop', 'Male', 'Child', 'Age', 'Time']
+num_features = ['ID', 'Sum', 'Shop', 'Male', 'Age']
 X = X[num_features]
-from sklearn.cross_validation import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3, random_state = 11)
-N_train, _ = X_train.shape 
-N_test,  _ = X_test.shape 
-print (N_train, N_test)
-
-def plot_cv_score(params, cv_results_, title=''):
-    plt.figure(figsize=(10,5))
-    plt.plot(params, cv_results_['mean_test_score'])
-    plt.plot(params, cv_results_['mean_test_score'] + cv_results_['std_test_score'], 'b--')
-    plt.plot(params, cv_results_['mean_test_score'] - cv_results_['std_test_score'], 'b--')
-    plt.fill_between(params.astype(float), cv_results_['mean_test_score'] + cv_results_['std_test_score'],
-                     cv_results_['mean_test_score'] - cv_results_['std_test_score'], alpha=.2)
+X.dropna()
+scaler = StandardScaler()
+X_new = scaler.fit_transform(X)
+knn_cv_s = GridSearchCV(KNeighborsClassifier(), knn_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
+dtc_cv_s = GridSearchCV(DecisionTreeClassifier(), dtc_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
+sgd_cv_s = GridSearchCV(SGDClassifier(), sgd_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
+knn_cv_s.fit(X_new, y)
+dtc_cv_s.fit(X_new, y)
+sgd_cv_s.fit(X_new, y)
+knn_cv_s.best_score_
+dtc_cv_s.best_score_
+sgd_cv_s.best_score_
+knn_params_m = {'n_neighbors': np.arange(10, 101, 10), 'metric': ['euclidean', 'manhattan', 'chebyshev']}
+dtc_params_m = {'max_depth': np.arange(1,21), 'min_samples_leaf': np.arange(1,102,10)}
+rfc_params_m = {'max_features': np.linspace(.1,1,10), 'min_samples_leaf': np.arange(1,102,10)}
+sgd_params_m = {'loss': ['hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron'], 
+               'penalty': ['l2', 'l1', 'elasticnet', 'none']}
+knn_cv_m = GridSearchCV(KNeighborsClassifier(), knn_params_m, cv=5, scoring='roc_auc', return_train_score=True, n_jobs=-1)
+dtc_cv_m = GridSearchCV(DecisionTreeClassifier(), dtc_params_m, cv=5, scoring='roc_auc', return_train_score=True, n_jobs=-1)
+rfc_cv_m = GridSearchCV(RandomForestClassifier(n_estimators=40, random_state=0), rfc_params_m, cv=5, scoring='roc_auc',
+                        return_train_score=True, n_jobs=-1)
+sgd_cv_m = GridSearchCV(SGDClassifier(), sgd_params_m, cv=5, scoring='roc_auc', return_train_score=True, n_jobs=-1)
+knn_cv_m.fit(X_new, y)
+print(knn_cv_m.best_params_)
+print(knn_cv_m.best_score_)
+dtc_cv_m.fit(X, y)
+print(dtc_cv_m.best_params_)
+print(dtc_cv_m.best_score_)
+rfc_cv_m.fit(X, y)
+print(rfc_cv_m.best_params_)
+print(rfc_cv_m.best_score_)
+print('kNN: ' + str(round(np.mean(knn_cv_m.cv_results_['mean_fit_time']), 2)))
+print('tree: ' + str(round(np.mean(dtc_cv_m.cv_results_['mean_fit_time']), 2)))
+print('forest: ' + str(round(np.mean(rfc_cv_m.cv_results_['mean_fit_time']), 2)))
+print('SGD: ' + str(round(np.mean(sgd_cv_m.cv_results_['mean_fit_time']), 2)))
+rfc = RandomForestClassifier(n_estimators=2000, max_features=.1, min_samples_leaf=11, n_jobs=-1)
+rfc.fit(X_train, y_train)
+rfc_scores = get_roc_auc_list(X_test, y_test, rfc)
+plt.figure(figsize=(10,5))
+plt.plot(rfc_scores)
+plt.xlabel('Количество деревьев')
+plt.ylabel('ROC AUC score')
+from sklearn.model_selection import learning_curve
+knn = KNeighborsClassifier(metric='manhattan', n_neighbors=70)
+dtc = DecisionTreeClassifier(max_depth=8, min_samples_leaf=61)
+rfc = RandomForestClassifier(n_estimators=1000, max_features=.1, min_samples_leaf=11)
+sgd = SGDClassifier(loss='log', penalty='elasticnet', random_state=0)
+def plot_learning_curve(clf, title=""):
+    train_sizes_abs, train_scores, test_scores = learning_curve(clf, X, y, n_jobs=-1, scoring='roc_auc')
+    plt.plot(train_sizes_abs, train_scores.mean(axis=1), label='train score')
+    plt.plot(train_sizes_abs, test_scores.mean(axis=1), label='test score')
+    plt.xlabel('Размер обучающей выборки')
+    plt.ylabel('ROC AUC score')
     plt.title(title)
-    plt.xlabel('Параметр')
-    plt.ylabel('CV score +/- std')
-knn_params = {'n_neighbors' : np.arange(1,31)}
-dtc_params = {'max_depth' : np.arange(1,21)}
-sgd_params = {'loss' : ['hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron']}
-knn_cv = GridSearchCV(KNeighborsClassifier(), knn_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
-dtc_cv = GridSearchCV(DecisionTreeClassifier(), dtc_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
-sgd_cv = GridSearchCV(SGDClassifier(), sgd_params, cv=5, scoring='roc_auc', n_jobs=-1, return_train_score=True)
-knn_cv.fit(X, y)
-dtc_cv.fit(X, y)
-sgd_cv.fit(X, y)
-knn_cv.best_params_
+    plt.legend()
+    plt.show()
+plot_cv_score(knn_cv.cv_results_['param_n_neighbors'].data, knn_cv.cv_results_, 'knn')
+plot_cv_score(dtc_cv.cv_results_['param_max_depth'].data, dtc_cv.cv_results_, 'decision tree')
+sgd_params_vals = [x['loss'] for x in sgd_cv.cv_results_['params']]
+sgd_mean = sgd_cv.cv_results_['mean_test_score']
+sgd_std = sgd_cv.cv_results_['std_test_score']
+plt.figure(figsize=(10, 5))
+for i in range(len(sgd_params_vals)):
+    plt.plot([sgd_params_vals[i], sgd_params_vals[i]], [sgd_mean[i] + sgd_std[i], sgd_mean[i] - sgd_std[i]], 'k')
+plt.scatter(sgd_params_vals, sgd_mean, s=200)
+plt.scatter(sgd_params_vals, sgd_mean + sgd_std, c='b')
+plt.scatter(sgd_params_vals, sgd_mean - sgd_std, c='b')
+plt.xlabel('Параметр')
+plt.ylabel('CV score +/- std')
+plt.title('SGD Classifier')
+plt.show()
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
+rfc = RandomForestClassifier(n_estimators=100, n_jobs=-1)
+np.mean(cross_val_score(rfc, X, y, scoring='roc_auc', cv=5, n_jobs=-1))
+rfc = RandomForestClassifier(n_estimators=200, n_jobs=-1)
+def get_roc_auc_list(X, y, rfc):
+    predictions = list()
+    scores = list()
+    for tree in rfc.estimators_:
+        predictions.append(tree.predict(X))
+        scores.append(roc_auc_score(y, np.mean(predictions, axis=0)))
+    return scores
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.2, stratify=y, random_state=0)
+rfc.fit(X_train, y_train)
+rfc_scores = get_roc_auc_list(X_test, y_test, rfc)
+plt.plot(rfc_scores)
+plt.xlabel('Количество деревьев')
+plt.ylabel('ROC AUC score')
+np.mean(cross_val_score(rfc, X, y, scoring='roc_auc', cv=20, n_jobs=-1))
